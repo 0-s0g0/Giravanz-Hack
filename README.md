@@ -52,7 +52,6 @@ git commit -m '作業内容'
 git push origin feat/お名前
 ```
 #### githubから持ってくる(mainから)
-メインbranchに移動する
 ```bash
 git switch main
 git pull origin main

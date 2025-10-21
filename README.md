@@ -34,6 +34,47 @@ cd frontend
 npm run dev
 ```
 
+## GitHub使い方
+
+### ブランチを分けてね！！！
+branchを作る/移動する
+```bash
+git switch -c feat/お名前
+```
+branchを確認する
+```bash
+git branch
+```
+## githubにあげる
+```bash
+git add .
+git commit -m '作業内容'
+git push origin feat/お名前
+```
+## githubから持ってくる(mainから)
+メインbranchに移動する
+```bash
+git switch main
+```
+```bash
+git pull origin main
+```
+```bash
+git switch feat/お名前
+```
+
+### 個別起動
+```bash
+# Backend
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --reload --port 8000
+
+# Frontend
+cd frontend
+npm run dev
+```
+
 ## アクセス
 - フロントエンド: http://localhost:3000
 - API: http://localhost:8000

@@ -41,7 +41,7 @@ branchを作る/移動する
 ```bash
 git switch -c feat/お名前
 ```
-branchを確認する
+今いるbranchを確認する
 ```bash
 git branch
 ```
@@ -55,11 +55,7 @@ git push origin feat/お名前
 メインbranchに移動する
 ```bash
 git switch main
-```
-```bash
 git pull origin main
-```
-```bash
 git switch feat/お名前
 ```
 

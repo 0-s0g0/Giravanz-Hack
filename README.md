@@ -3,7 +3,7 @@
 ## 概要
 グループの盛り上がり度を音声と表情からリアルタイム分析
 
-## 📁 プロジェクト構成
+## プロジェクト構成
 ```
 realtime-group-analyzer/
 ├── frontend/          # Next.js (TypeScript + Tailwind)

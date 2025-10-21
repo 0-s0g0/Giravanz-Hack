@@ -21,6 +21,10 @@ realtime-group-analyzer/
 ```bash
 docker-compose up --build
 ```
+```bash
+docker-compose down
+```
+
 
 ### 個別起動
 ```bash

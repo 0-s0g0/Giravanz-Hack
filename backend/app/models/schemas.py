@@ -3,44 +3,43 @@ from typing import List, Optional, Dict
 from datetime import datetime
 
 class SessionConfig(BaseModel):
-    """»Ã·çó-š"""
+    """ã‚»ãƒƒã‚·ãƒ§ãƒ³è¨­å®š"""
     num_groups: int
     duration_minutes: int
 
 class GroupCreate(BaseModel):
-    """°ëü×\"""
+    """ã‚°ãƒ«ãƒ¼ãƒ—ä½œæˆ"""
     session_id: str
     group_id: str
     group_name: str
 
 class AudioData(BaseModel):
-    """óğÇü¿"""
+    """éŸ³å£°ãƒ‡ãƒ¼ã‚¿"""
     session_id: str
     group_id: str
     audio_base64: str
     timestamp: float
 
 class VideoFrame(BaseModel):
-    """Õ;Õìüà"""
+    """å‹•ç”»ãƒ•ãƒ¬ãƒ¼ãƒ """
     session_id: str
     group_id: str
     frame_base64: str
     timestamp: float
 
 class AnalysisResult(BaseModel):
-    """Pœ"""
+    """åˆ†æçµæœ"""
     group_id: str
     group_name: str
-    audio_score: float  # óğnÛŠ
-LŠ¹³¢ (0-100)
-    expression_score: float  # hÅ¹³¢ (0-100)
-    total_score: float  # Ï¹³¢ (0-100)
-    audio_details: Dict  # óğns0
-    expression_details: Dict  # hÅns0
-    best_moment_timestamp: Optional[float]  # Ù¹Èj¬“n¿¤à¹¿ó×
+    audio_score: float  # éŸ³å£°ã‚¹ã‚³ã‚¢ (0-100)
+    expression_score: float  # è¡¨æƒ…ã‚¹ã‚³ã‚¢ (0-100)
+    total_score: float  # ç·åˆã‚¹ã‚³ã‚¢ (0-100)
+    audio_details: Dict  # éŸ³å£°è©³ç´°æƒ…å ±
+    expression_details: Dict  # è¡¨æƒ…è©³ç´°æƒ…å ±
+    best_moment_timestamp: Optional[float]  # æœ€ã‚‚ç››ã‚Šä¸ŠãŒã£ãŸã‚¿ã‚¤ãƒ ã‚¹ã‚¿ãƒ³ãƒ—
 
 class SessionResult(BaseModel):
-    """»Ã·çóPœ"""
+    """ã‚»ãƒƒã‚·ãƒ§ãƒ³åˆ†æçµæœ"""
     session_id: str
     results: List[AnalysisResult]
     winner_group_id: str

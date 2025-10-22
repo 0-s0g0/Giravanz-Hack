@@ -1,6 +1,6 @@
 """
 音量レベル測定モジュール
-★このファイルのみ別チームが実装★
+下平くん担当
 """
 
 def analyze_audio_volume(audio_data: bytes) -> float:

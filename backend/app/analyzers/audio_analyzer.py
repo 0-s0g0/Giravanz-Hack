@@ -33,13 +33,13 @@ class AudioAnalyzer:
         Returns:
             float: 基本スコア (0-50点)
         """
-        if db_value <= 50
+        if db_value <= 50:
             return 0
-        elif db_value <= 60
+        elif db_value <= 60:
             return 10
-        elif db_value <= 70
+        elif db_value <= 70:
             return 15
-        elif db_value <= 80
+        elif db_value <= 80:
             return 20
         elif db_value <= 90:
             return 25

@@ -2,7 +2,7 @@ import base64
 import numpy as np
 from datetime import datetime
 import logging
-from app.analyzers.audio_analyzer import analyze_audio_volume
+from app.analyzers.audio_analyzer import AudioAnalyzer
 from app.analyzers.expression_analyzer import ExpressionAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -10,7 +10,13 @@ logger = logging.getLogger(__name__)
 def register_socketio_handlers(sio, sessions, session_data):
     """Socket.IO event handlers"""
 
+    # アナライザーのインスタンスを作成
+    # セッションごとにハイスコアを管理する場合は、セッション作成時に初期化
+    audio_analyzers = {}  # session_id -> AudioAnalyzer
     expression_analyzer = ExpressionAnalyzer()
+
+    # セッション終了フラグ（重複実行を防ぐ）
+    session_ended = set()  # 終了済みのsession_idを記録
 
     @sio.event
     async def connect(sid, environ):
@@ -45,6 +51,9 @@ def register_socketio_handlers(sio, sessions, session_data):
                 'analysis_results': {}
             }
 
+            # セッションごとにAudioAnalyzerを作成
+            audio_analyzers[session_id] = AudioAnalyzer()
+
             logger.info(f"Session created: {session_id}")
         else:
             logger.info(f"Session already exists: {session_id}")
@@ -77,6 +86,8 @@ def register_socketio_handlers(sio, sessions, session_data):
         if group_id not in session_data[session_id]['analysis_results']:
             session_data[session_id]['analysis_results'][group_id] = {
                 'audio_volumes': [],
+                'audio_scores': [],
+                'audio_details': [],
                 'expression_scores': [],
                 'timestamps': []
             }
@@ -101,7 +112,7 @@ def register_socketio_handlers(sio, sessions, session_data):
         session_id = data.get('session_id')
         if session_id:
             await sio.enter_room(sid, f"session_{session_id}")
-            logger.info(f"Client {sid} monitoring session {session_id}")
+            logger.info(f"Client {sid} entered room: session_{session_id} for monitoring")
 
     @sio.event
     async def group_ready(sid, data):
@@ -168,6 +179,8 @@ def register_socketio_handlers(sio, sessions, session_data):
                 session_data[session_id]['audio_data'][group_id] = []
                 session_data[session_id]['analysis_results'][group_id] = {
                     'audio_volumes': [],
+                    'audio_scores': [],
+                    'audio_details': [],
                     'expression_scores': [],
                     'timestamps': []
                 }
@@ -175,16 +188,64 @@ def register_socketio_handlers(sio, sessions, session_data):
 
             audio_bytes = base64.b64decode(audio_base64)
 
+            # バイト配列をnumpy配列に変換（周波数データとして）
+            frequency_data = np.frombuffer(audio_bytes, dtype=np.uint8)
+
             session_data[session_id]['audio_data'][group_id].append({
                 'data': audio_bytes,
                 'timestamp': timestamp
             })
 
-            volume = analyze_audio_volume(audio_bytes) * 100
-            session_data[session_id]['analysis_results'][group_id]['audio_volumes'].append(volume)
-            session_data[session_id]['analysis_results'][group_id]['timestamps'].append(timestamp)
+            # AudioAnalyzerを使用して詳細な分析を実行
+            if session_id not in audio_analyzers:
+                audio_analyzers[session_id] = AudioAnalyzer()
 
-            logger.debug(f"Audio stream from group {group_id}, volume: {volume}")
+            analyzer = audio_analyzers[session_id]
+            # 周波数データから直接分析
+            analysis_result = analyzer.analyze_frequency_data(frequency_data)
+
+            if analysis_result:
+                # 最終スコアを保存
+                final_score = analysis_result['final_score']
+                session_data[session_id]['analysis_results'][group_id]['audio_scores'].append(final_score)
+
+                # 詳細情報を保存
+                session_data[session_id]['analysis_results'][group_id]['audio_details'].append({
+                    'db_value': analysis_result['db_value'],
+                    'initial_score': analysis_result['initial_score'],
+                    'high_freq_percentage': analysis_result['high_freq_percentage'],
+                    'final_score': final_score,
+                    'is_new_high': analysis_result['is_new_high']
+                })
+
+                # 後方互換性のため、従来のvolume値も保存
+                volume = min(final_score, 100)
+                session_data[session_id]['analysis_results'][group_id]['audio_volumes'].append(volume)
+
+                logger.debug(
+                    f"Audio stream from group {group_id}: "
+                    f"score={final_score:.2f}, "
+                    f"dB={analysis_result['db_value']:.2f}, "
+                    f"high_freq%={analysis_result['high_freq_percentage']:.2f}"
+                )
+
+                # リアルタイムスコアをクライアントに送信
+                await sio.emit('audio_analysis_update', {
+                    'group_id': group_id,
+                    'current_score': round(final_score, 2),
+                    'db_value': round(analysis_result['db_value'], 2),
+                    'high_freq_percentage': round(analysis_result['high_freq_percentage'], 2),
+                    'is_new_high': analysis_result['is_new_high'],
+                    'high_score': round(analysis_result['high_score'], 2),
+                    'timestamp': timestamp
+                }, room=f"{session_id}_{group_id}")
+            else:
+                # 分析失敗時はデフォルト値
+                session_data[session_id]['analysis_results'][group_id]['audio_scores'].append(0)
+                session_data[session_id]['analysis_results'][group_id]['audio_volumes'].append(0)
+                logger.warning(f"Audio analysis failed for group {group_id}")
+
+            session_data[session_id]['analysis_results'][group_id]['timestamps'].append(timestamp)
 
         except Exception as e:
             logger.error(f"Error processing audio: {e}", exc_info=True)
@@ -210,6 +271,8 @@ def register_socketio_handlers(sio, sessions, session_data):
                 session_data[session_id]['video_frames'][group_id] = []
                 session_data[session_id]['analysis_results'][group_id] = {
                     'audio_volumes': [],
+                    'audio_scores': [],
+                    'audio_details': [],
                     'expression_scores': [],
                     'timestamps': []
                 }
@@ -254,30 +317,53 @@ def register_socketio_handlers(sio, sessions, session_data):
         try:
             session_id = data.get('session_id')
 
+            logger.info(f"session_end called by {sid} for session {session_id}")
+
             if session_id not in sessions:
+                logger.error(f"Session {session_id} not found")
                 await sio.emit('error', {'message': 'Session not found'}, room=sid)
                 return
+
+            # 既に終了処理が行われている場合はスキップ
+            if session_id in session_ended:
+                logger.info(f"Session {session_id} already ended, skipping duplicate request")
+                return
+
+            # 終了フラグを設定
+            session_ended.add(session_id)
+            logger.info(f"Processing session end for {session_id}")
 
             results = []
             for group_id, group_info in sessions[session_id]['groups'].items():
                 analysis_data = session_data[session_id]['analysis_results'].get(group_id, {})
 
-                audio_volumes = analysis_data.get('audio_volumes', [])
-                avg_volume = np.mean(audio_volumes) if audio_volumes else 0
-                active_count = len([v for v in audio_volumes if v > 30])
-                activity_ratio = (active_count / len(audio_volumes)) if audio_volumes else 0
-                audio_score = min(100, avg_volume * 0.6 + activity_ratio * 100 * 0.4)
+                # 新しいaudio_scoresを使用（なければ従来のaudio_volumesにフォールバック）
+                audio_scores = analysis_data.get('audio_scores', [])
+                if not audio_scores:
+                    audio_scores = analysis_data.get('audio_volumes', [])
+
+                # 音声スコアの平均を計算（float()でPythonネイティブ型に変換）
+                avg_audio_score = float(np.mean(audio_scores)) if audio_scores else 0.0
+                max_audio_score = float(np.max(audio_scores)) if audio_scores else 0.0
+
+                # 詳細情報を取得
+                audio_details_list = analysis_data.get('audio_details', [])
+                avg_db = float(np.mean([d['db_value'] for d in audio_details_list])) if audio_details_list else 0.0
+                avg_high_freq = float(np.mean([d['high_freq_percentage'] for d in audio_details_list])) if audio_details_list else 0.0
+
+                # 音声スコアはaudioscore.pyのアルゴリズムを使用（0-100点）
+                audio_score = float(min(100, avg_audio_score))
 
                 expression_scores = analysis_data.get('expression_scores', [])
-                expression_score = np.mean(expression_scores) if expression_scores else 0
+                expression_score = float(np.mean(expression_scores)) if expression_scores else 0.0
 
-                total_score = (audio_score * 0.6) + (expression_score * 0.4)
+                total_score = float((audio_score * 0.6) + (expression_score * 0.4))
 
                 timestamps = analysis_data.get('timestamps', [])
                 best_moment = None
-                if timestamps and audio_volumes:
-                    best_idx = np.argmax(audio_volumes)
-                    best_moment = timestamps[best_idx]
+                if timestamps and audio_scores:
+                    best_idx = int(np.argmax(audio_scores))  # int()で変換
+                    best_moment = int(timestamps[best_idx]) if best_idx < len(timestamps) else None
 
                 results.append({
                     'group_id': group_id,
@@ -286,13 +372,15 @@ def register_socketio_handlers(sio, sessions, session_data):
                     'expression_score': round(expression_score, 2),
                     'total_score': round(total_score, 2),
                     'audio_details': {
-                        'avg_volume': round(avg_volume, 2),
-                        'max_volume': round(np.max(audio_volumes), 2) if audio_volumes else 0,
-                        'activity_count': active_count
+                        'avg_score': round(avg_audio_score, 2),
+                        'max_score': round(max_audio_score, 2),
+                        'avg_db': round(avg_db, 2),
+                        'avg_high_freq_percentage': round(avg_high_freq, 2),
+                        'sample_count': len(audio_scores)
                     },
                     'expression_details': {
-                        'avg_score': round(np.mean(expression_scores), 2) if expression_scores else 0,
-                        'max_score': round(np.max(expression_scores), 2) if expression_scores else 0
+                        'avg_score': round(float(np.mean(expression_scores)), 2) if expression_scores else 0.0,
+                        'max_score': round(float(np.max(expression_scores)), 2) if expression_scores else 0.0
                     },
                     'best_moment_timestamp': best_moment
                 })
@@ -307,11 +395,21 @@ def register_socketio_handlers(sio, sessions, session_data):
                 'created_at': datetime.now().isoformat()
             }
 
+            logger.info(f"Session {session_id} ended, winner: {winner_group_id}")
+            logger.info(f"Sending session_results to room: session_{session_id}")
+            logger.info(f"Results: {len(results)} groups analyzed")
+
             # 全グループに結果を送信（セッション全体のルームに送信）
             await sio.emit('session_results', final_result, room=f"session_{session_id}")
 
-            logger.info(f"Session {session_id} ended, winner: {winner_group_id}")
+            # 個別のクライアントにも送信（念のため）
+            await sio.emit('session_results', final_result, room=sid)
+
+            logger.info(f"session_results emitted successfully for session {session_id}")
 
         except Exception as e:
-            logger.error(f"Error ending session: {e}")
+            logger.error(f"Error ending session: {e}", exc_info=True)
+            # エラー時は終了フラグを解除
+            if session_id in session_ended:
+                session_ended.remove(session_id)
             await sio.emit('error', {'message': str(e)}, room=sid)

@@ -23,6 +23,7 @@ function SessionContent() {
   const [audioScore, setAudioScore] = useState<number>(0);
   const [audioHighScore, setAudioHighScore] = useState<number>(0);
   const [isNewHigh, setIsNewHigh] = useState<boolean>(false);
+  const [detectedWords, setDetectedWords] = useState<Array<{id: number; word: string; timestamp: number}>>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,6 +32,8 @@ function SessionContent() {
   const socketRef = useRef<Socket | null>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const isRecognitionRunningRef = useRef<boolean>(false);
 
   useEffect(() => {
     // 設定を取得
@@ -177,6 +180,248 @@ function SessionContent() {
     if (score >= 50) return '😊'; // 50から75
     if (score >= 25) return '😑'; // 25から50
     return '😣'; // 0から25
+  };
+
+  // 検出する応援キーワードリスト
+  const CHEER_KEYWORDS = [
+    'がんばれ', '頑張れ', 'ガンバレ',
+    'いいね', 'イイネ',
+    'やったー', 'ヤッター',
+    'ゴール',
+    'ギラヴァンツ', 'ぎらヴぁんツ',
+    'ボール',
+    'すごい', 'スゴイ',
+    'ナイス',
+    'よし', 'ヨシ',
+    'いけ', 'イケ'
+  ];
+
+  /**
+   * 音声認識を開始する（Web Speech API）
+   */
+  const startSpeechRecognition = async () => {
+    console.log('🎤 音声認識の初期化を開始します...');
+
+    // マイク権限の確認
+    try {
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      console.log('🎙️ マイク権限の状態:', permissionStatus.state);
+    } catch (e) {
+      console.warn('⚠️ マイク権限の確認に失敗:', e);
+    }
+
+    // ブラウザ対応チェック
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    console.log('🔍 ブラウザの音声認識サポート:', {
+      hasSpeechRecognition: !!(window as any).SpeechRecognition,
+      hasWebkitSpeechRecognition: !!(window as any).webkitSpeechRecognition,
+      isSupported: !!SpeechRecognition
+    });
+
+    if (!SpeechRecognition) {
+      console.error('❌ このブラウザは音声認識に対応していません');
+      alert('このブラウザは音声認識に対応していません。Chromeブラウザをご利用ください。');
+      return;
+    }
+
+    console.log('✅ 音声認識APIが利用可能です');
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ja-JP';
+    recognition.continuous = true; // 継続的に認識
+    recognition.interimResults = true; // リアルタイム結果を取得
+
+    console.log('🔧 音声認識の設定:', {
+      lang: 'ja-JP',
+      continuous: true,
+      interimResults: true
+    });
+
+    recognition.onresult = (event: any) => {
+      console.log('🎤 音声認識イベント発生', {
+        resultLength: event.results.length,
+        isFinal: event.results[event.results.length - 1].isFinal
+      });
+
+      const result = event.results[event.results.length - 1];
+      const transcript = result[0].transcript;
+      const isFinal = result.isFinal;
+
+      console.log('🎤 音声認識結果:', {
+        transcript: transcript,
+        isFinal: isFinal,
+        confidence: result[0].confidence
+      });
+
+      // キーワードマッチング
+      const transcriptLower = transcript.toLowerCase();
+      CHEER_KEYWORDS.forEach(keyword => {
+        if (transcriptLower.includes(keyword.toLowerCase())) {
+          console.log('✅ キーワード検出:', {
+            keyword: keyword,
+            transcript: transcript,
+            isFinal: isFinal
+          });
+          const newWord = {
+            id: Date.now() + Math.random(),
+            word: keyword,
+            timestamp: Date.now()
+          };
+          setDetectedWords(prev => [...prev, newWord]);
+
+          // 3秒後に自動削除
+          setTimeout(() => {
+            setDetectedWords(prev => prev.filter(w => w.id !== newWord.id));
+          }, 3000);
+        }
+      });
+    };
+
+    recognition.onstart = () => {
+      console.log('🎤 音声認識が開始されました');
+      isRecognitionRunningRef.current = true;
+    };
+
+    recognition.onaudiostart = () => {
+      console.log('🔊 マイクの音声入力が開始されました');
+    };
+
+    recognition.onaudioend = () => {
+      console.log('🔇 マイクの音声入力が終了しました');
+    };
+
+    recognition.onsoundstart = () => {
+      console.log('🔉 音声が検出されました');
+    };
+
+    recognition.onsoundend = () => {
+      console.log('🔈 音声の検出が終了しました');
+    };
+
+    recognition.onspeechstart = () => {
+      console.log('🗣️ 発話が検出されました');
+    };
+
+    recognition.onspeechend = () => {
+      console.log('🤐 発話が終了しました');
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('❌ 音声認識エラー:', {
+        error: event.error,
+        message: event.message,
+        timestamp: new Date().toISOString()
+      });
+
+      // 全てのエラータイプをログに出力
+      if (event.error === 'no-speech') {
+        console.warn('⚠️ 音声が検出されませんでした（no-speech）');
+      } else if (event.error === 'audio-capture') {
+        console.error('❌ マイクへのアクセスに失敗しました（audio-capture）');
+      } else if (event.error === 'not-allowed') {
+        console.error('❌ マイクの使用が許可されていません（not-allowed）');
+      } else if (event.error === 'network') {
+        console.error('❌ ネットワークエラーが発生しました（network）');
+      } else {
+        console.error('❌ 未知のエラー:', event.error);
+      }
+
+      // not-allowed以外のエラー時は再起動を試みる
+      if (event.error !== 'not-allowed' && event.error !== 'aborted') {
+        console.log('⚠️ 音声認識を再起動します（エラー後、1秒後）...');
+        setTimeout(() => {
+          if (recognitionRef.current && !isRecognitionRunningRef.current) {
+            try {
+              console.log('🔄 エラー後の再起動: recognition.start() を呼び出します');
+              recognition.start();
+              console.log('✅ recognition.start() の呼び出しが成功しました（エラー後）');
+            } catch (e) {
+              console.error('❌ 音声認識の再起動に失敗:', e);
+              if (e instanceof Error) {
+                console.error('エラー後の再起動失敗詳細:', {
+                  name: e.name,
+                  message: e.message
+                });
+              }
+            }
+          } else if (isRecognitionRunningRef.current) {
+            console.log('⏭️ エラー後、音声認識は既に動作中のため、再起動をスキップします');
+          }
+        }, 1000);
+      } else if (event.error === 'aborted') {
+        console.log('⏹️ 音声認識が中断されました（aborted）、onendで処理します');
+      }
+    };
+
+    recognition.onend = () => {
+      console.log('🛑 音声認識が終了しました', {
+        hasRecognitionRef: !!recognitionRef.current,
+        isRecognitionRunning: isRecognitionRunningRef.current,
+        isRunning: isRunning
+      });
+
+      isRecognitionRunningRef.current = false;
+
+      // continuous: true なので、通常は自動的に継続するはず
+      // onend が呼ばれたということは何か問題が発生した可能性がある
+      // recognitionRef が存在し、まだセッション中なら再起動を試みる
+      if (recognitionRef.current) {
+        console.log('🔄 音声認識を自動再起動します（500ms後）...');
+        setTimeout(() => {
+          if (recognitionRef.current && !isRecognitionRunningRef.current) {
+            try {
+              console.log('🔄 認識を再起動中... recognition.start() を呼び出します');
+              recognition.start();
+              console.log('✅ recognition.start() の呼び出しが成功しました（再起動）');
+            } catch (e) {
+              console.error('❌ 音声認識の再起動に失敗:', e);
+              if (e instanceof Error) {
+                console.error('再起動エラー詳細:', {
+                  name: e.name,
+                  message: e.message
+                });
+              }
+            }
+          } else if (isRecognitionRunningRef.current) {
+            console.log('⏭️ 音声認識は既に動作中のため、再起動をスキップします');
+          } else {
+            console.log('⏹️ タイムアウト後、recognitionRefがnullになっていました');
+          }
+        }, 500);
+      } else {
+        console.log('⏹️ 音声認識は停止されました（recognitionRefがnull）');
+      }
+    };
+
+    recognitionRef.current = recognition;
+
+    console.log('🚀 recognition.start() を呼び出します...');
+    try {
+      recognition.start();
+      console.log('✅ recognition.start() の呼び出しが成功しました');
+      console.log('⏳ onstart イベントを待っています...');
+    } catch (e) {
+      console.error('❌ recognition.start() の呼び出しで例外が発生:', e);
+      if (e instanceof Error) {
+        console.error('エラー詳細:', {
+          name: e.name,
+          message: e.message,
+          stack: e.stack
+        });
+      }
+    }
+  };
+
+  /**
+   * 音声認識を停止する
+   */
+  const stopSpeechRecognition = () => {
+    if (recognitionRef.current) {
+      console.log('🛑 音声認識を停止します...');
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      isRecognitionRunningRef.current = false;
+      console.log('✅ 音声認識を停止しました');
+    }
   };
 
 
@@ -340,6 +585,10 @@ function SessionContent() {
     console.log('Starting audio capture (every 1 second)');
     audioIntervalRef.current = captureAudio();
 
+    // 音声認識を開始
+    console.log('Starting speech recognition');
+    startSpeechRecognition();
+
     console.log('All capture intervals started successfully');
   };
 
@@ -356,6 +605,9 @@ function SessionContent() {
       clearInterval(audioIntervalRef.current);
       audioIntervalRef.current = null;
     }
+
+    // 音声認識を停止
+    stopSpeechRecognition();
 
     // メディアストリームを停止
     if (mediaStreamRef.current) {
@@ -451,6 +703,32 @@ function SessionContent() {
                     );
                   })}
                 </svg>
+              )}
+
+              {/* 音声認識で検出された単語のオーバーレイ */}
+              {isRunning && detectedWords.length > 0 && (
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                  {detectedWords.map((item, index) => {
+                    // ランダムな位置に配置
+                    const randomX = 10 + (index * 23) % 70;
+                    const randomY = 15 + (index * 17) % 60;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="absolute text-4xl font-bold text-yellow-300"
+                        style={{
+                          left: `${randomX}%`,
+                          top: `${randomY}%`,
+                          textShadow: '2px 2px 4px rgba(0,0,0,0.8), 0 0 10px rgba(255,255,0,0.5)',
+                          animation: 'fadeOut 3s ease-out forwards'
+                        }}
+                      >
+                        {item.word}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
               {!isRunning && (

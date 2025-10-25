@@ -7,7 +7,8 @@ from app.analyzers.audio_analyzer import AudioAnalyzer
 from app.analyzers.expression_analyzer import ExpressionAnalyzer
 
 logger = logging.getLogger(__name__)
-
+logging.getLogger('engineio.server').setLevel(logging.WARNING) 
+logging.getLogger('socketio.server').setLevel(logging.WARNING) 
 def register_socketio_handlers(sio, sessions, session_data):
     """Socket.IO event handlers"""
 
@@ -312,11 +313,12 @@ def register_socketio_handlers(sio, sessions, session_data):
                 session_data[session_id]['analysis_results'][group_id]['expression_scores'].append(expression_score)
 
                 # 顔検出データをクライアントに送信
+                '''
                 logger.info(
                     f"Face detection for group {group_id}: "
                     f"face_count={detection_result['face_count']}, "
                     f"score={expression_score:.2f}"
-                )
+                )'''
                 await sio.emit('face_detection', {
                     'group_id': group_id,
                     'faces': detection_result['faces'],
@@ -329,9 +331,11 @@ def register_socketio_handlers(sio, sessions, session_data):
                 logger.debug(f"No face detected for group {group_id}")
 
             # ログ出力（データは短縮）
+            '''
             logger.debug(
                 f"Video frame from group {group_id} received. "
             )
+            '''
 
         except Exception as e:
             logger.error(f"Error processing video: {e}", exc_info=True)

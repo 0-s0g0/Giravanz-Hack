@@ -25,6 +25,9 @@ function SessionContent() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // 設定を取得
@@ -81,6 +84,7 @@ function SessionContent() {
     // セッション開始を受信
     newSocket.on('session_started', () => {
       console.log('Session started by master');
+      console.log('Attempting to start camera and audio capture...');
       setWaitingForMaster(false);
       handleStart();
     });
@@ -100,9 +104,11 @@ function SessionContent() {
     });
 
     setSocket(newSocket);
+    socketRef.current = newSocket;
 
     return () => {
       newSocket.close();
+      socketRef.current = null;
     };
   }, [sessionId, groupId, router]);
 
@@ -124,11 +130,13 @@ function SessionContent() {
 
   const startCamera = async () => {
     try {
+      console.log('Requesting camera and microphone access...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 },
         audio: true
       });
 
+      console.log('Camera and microphone access granted!');
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -139,6 +147,7 @@ function SessionContent() {
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
 
+      console.log('Camera setup complete');
       return true;
     } catch (error) {
       console.error('Error accessing camera/microphone:', error);
@@ -148,13 +157,23 @@ function SessionContent() {
   };
 
   const captureFrame = () => {
-    if (!canvasRef.current || !videoRef.current || !socket) return;
+    if (!canvasRef.current || !videoRef.current || !socketRef.current) {
+      console.warn('captureFrame: Missing canvas, video, or socket', {
+        canvas: !!canvasRef.current,
+        video: !!videoRef.current,
+        socket: !!socketRef.current
+      });
+      return;
+    }
 
     const canvas = canvasRef.current;
     const video = videoRef.current;
     const ctx = canvas.getContext('2d');
 
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('captureFrame: Could not get canvas context');
+      return;
+    }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -166,8 +185,9 @@ function SessionContent() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64 = reader.result?.toString().split(',')[1];
-        if (base64 && socket) {
-          socket.emit('video_frame', {
+        if (base64 && socketRef.current) {
+          console.log('Sending video frame to server');
+          socketRef.current.emit('video_frame', {
             session_id: sessionId,
             group_id: groupId,
             frame_data: base64,
@@ -179,12 +199,22 @@ function SessionContent() {
     }, 'image/jpeg', 0.8);
   };
 
-  const captureAudio = () => {
-    if (!mediaStreamRef.current || !socket) return;
+  const captureAudio = (): NodeJS.Timeout | null => {
+    if (!mediaStreamRef.current || !socketRef.current) {
+      console.warn('captureAudio: Missing media stream or socket', {
+        mediaStream: !!mediaStreamRef.current,
+        socket: !!socketRef.current
+      });
+      return null;
+    }
 
     const audioContext = audioContextRef.current;
-    if (!audioContext) return;
+    if (!audioContext) {
+      console.warn('captureAudio: No audio context');
+      return null;
+    }
 
+    console.log('Setting up audio capture');
     const source = audioContext.createMediaStreamSource(mediaStreamRef.current);
     const analyser = audioContext.createAnalyser();
     source.connect(analyser);
@@ -198,16 +228,20 @@ function SessionContent() {
       // 音声データをBase64エンコード
       const base64 = btoa(String.fromCharCode.apply(null, Array.from(dataArray)));
 
-      socket.emit('audio_stream', {
-        session_id: sessionId,
-        group_id: groupId,
-        audio_data: base64,
-        timestamp: Date.now()
-      });
+      if (socketRef.current) {
+        console.log('Sending audio stream to server');
+        socketRef.current.emit('audio_stream', {
+          session_id: sessionId,
+          group_id: groupId,
+          audio_data: base64,
+          timestamp: Date.now()
+        });
+      }
     };
 
     // 1秒ごとに音声をキャプチャ
     const audioInterval = setInterval(capture, 1000);
+    console.log('Audio capture interval started');
     return audioInterval;
   };
 
@@ -234,26 +268,39 @@ function SessionContent() {
   };
 
   const handleStart = async () => {
+    console.log('handleStart called');
     const cameraReady = await startCamera();
-    if (!cameraReady) return;
+    if (!cameraReady) {
+      console.error('Camera not ready, aborting start');
+      return;
+    }
 
+    console.log('Setting isRunning to true');
     setIsRunning(true);
 
     // 動画フレームを2秒ごとにキャプチャ
-    const frameInterval = setInterval(captureFrame, 2000);
+    console.log('Starting video frame capture (every 2 seconds)');
+    frameIntervalRef.current = setInterval(captureFrame, 2000);
 
     // 音声を1秒ごとにキャプチャ
-    const audioInterval = captureAudio();
+    console.log('Starting audio capture (every 1 second)');
+    audioIntervalRef.current = captureAudio();
 
-    // クリーンアップ用に保存
-    return () => {
-      clearInterval(frameInterval);
-      if (audioInterval) clearInterval(audioInterval);
-    };
+    console.log('All capture intervals started successfully');
   };
 
   const handleSessionEnd = () => {
     setIsRunning(false);
+
+    // インターバルをクリア
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+    if (audioIntervalRef.current) {
+      clearInterval(audioIntervalRef.current);
+      audioIntervalRef.current = null;
+    }
 
     // メディアストリームを停止
     if (mediaStreamRef.current) {
@@ -261,8 +308,8 @@ function SessionContent() {
     }
 
     // セッション終了を通知
-    if (socket) {
-      socket.emit('session_end', { session_id: sessionId });
+    if (socketRef.current) {
+      socketRef.current.emit('session_end', { session_id: sessionId });
     }
   };
 

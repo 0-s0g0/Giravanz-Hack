@@ -6,7 +6,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=https://api.0-s0g0.com
+      - NEXT_PUBLIC_APP_URL=https://next.0-s0g0.com
     depends_on:
       - api
     volumes:

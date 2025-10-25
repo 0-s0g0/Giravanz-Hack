@@ -165,6 +165,23 @@ function SessionContent() {
     }
   }, [isRunning, timeLeft]);
 
+
+  /**
+   * スコアに基づいて表情の絵文字を決定する
+   * @param score 表情スコア (0.0 - 100.0)
+   * @returns 対応する絵文字
+   */
+  const getFaceEmoji = (score: number | undefined): string => {
+    if (score === undefined || score < 0) return '🤔';
+    if (score >= 75) return '😆'; // 75から100
+    if (score >= 50) return '😊'; // 50から75
+    if (score >= 25) return '😑'; // 25から50
+    return '😣'; // 0から25
+  };
+
+
+
+
   const startCamera = async () => {
     try {
       console.log('Requesting camera and microphone access...');
@@ -360,6 +377,8 @@ function SessionContent() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const faceEmoji = getFaceEmoji(faceDetections?.score);
 
   return (
     <div className="min-h-screen bg-yellow-100 p-4">
@@ -562,7 +581,7 @@ function SessionContent() {
                 {/* 表情スコア */}
                 <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-6 border-2 border-pink-200">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-2xl">😊</span>
+                    <span className="text-2xl">{faceEmoji}</span>
                     <h3 className="font-bold text-gray-800">表情スコア</h3>
                   </div>
                   <div className="text-4xl font-bold text-pink-600">

@@ -95,7 +95,12 @@ function SessionContent() {
 
     // 顔検出データを受信
     newSocket.on('face_detection', (data) => {
-      console.log('Face detection:', data);
+      console.log('🎭 Face detection:', {
+        group_id: data.group_id,
+        face_count: data.face_count,
+        score: data.score,
+        faces: data.faces
+      });
       setFaceDetections(data);
     });
 
@@ -421,7 +426,7 @@ function SessionContent() {
                           fontSize="14"
                           fontWeight="bold"
                         >
-                          😊 {face.smile_score.toFixed(1)}%
+                          😊 {face.excitement_score?.toFixed(1) || '0'}
                         </text>
                       </g>
                     );

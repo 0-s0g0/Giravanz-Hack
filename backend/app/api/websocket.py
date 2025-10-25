@@ -1,5 +1,6 @@
 import base64
 import numpy as np
+import cv2
 from datetime import datetime
 import logging
 from app.analyzers.audio_analyzer import AudioAnalyzer
@@ -247,6 +248,13 @@ def register_socketio_handlers(sio, sessions, session_data):
 
             session_data[session_id]['analysis_results'][group_id]['timestamps'].append(timestamp)
 
+            # ログ出力（データは短縮）
+            logger.debug(
+                f"Audio stream from group {group_id} received. "
+                f"Base64 length: {len(audio_base64)}, "
+                f"Bytes size: {len(audio_bytes)}."
+            )
+
         except Exception as e:
             logger.error(f"Error processing audio: {e}", exc_info=True)
 
@@ -281,22 +289,34 @@ def register_socketio_handlers(sio, sessions, session_data):
             frame_bytes = base64.b64decode(frame_base64)
             nparr = np.frombuffer(frame_bytes, np.uint8)
 
+            # 画像をデコード（JPEG/PNGバイト列 → numpy配列）
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+            if frame is None:
+                logger.warning(f"Failed to decode image for group {group_id}")
+                return
+
             if len(session_data[session_id]['video_frames'][group_id]) >= 10:
                 session_data[session_id]['video_frames'][group_id].pop(0)
 
             session_data[session_id]['video_frames'][group_id].append({
-                'data': nparr,
+                'data': frame,
                 'timestamp': timestamp
             })
 
             # 顔検出付きで分析
-            detection_result = expression_analyzer.analyze_frame_with_detection(nparr)
+            detection_result = expression_analyzer.analyze_frame_with_detection(frame)
 
             if detection_result is not None:
                 expression_score = detection_result['score']
                 session_data[session_id]['analysis_results'][group_id]['expression_scores'].append(expression_score)
 
                 # 顔検出データをクライアントに送信
+                logger.info(
+                    f"Face detection for group {group_id}: "
+                    f"face_count={detection_result['face_count']}, "
+                    f"score={expression_score:.2f}"
+                )
                 await sio.emit('face_detection', {
                     'group_id': group_id,
                     'faces': detection_result['faces'],
@@ -305,8 +325,13 @@ def register_socketio_handlers(sio, sessions, session_data):
                     'image_width': detection_result['image_width'],
                     'image_height': detection_result['image_height']
                 }, room=f"{session_id}_{group_id}")
+            else:
+                logger.debug(f"No face detected for group {group_id}")
 
-            logger.debug(f"Video frame from group {group_id}")
+            # ログ出力（データは短縮）
+            logger.debug(
+                f"Video frame from group {group_id} received. "
+            )
 
         except Exception as e:
             logger.error(f"Error processing video: {e}", exc_info=True)

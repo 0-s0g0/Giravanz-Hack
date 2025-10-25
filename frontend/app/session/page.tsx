@@ -11,6 +11,7 @@ import sunzin from '@/public/sunzin.jpg'
 import VideoPreview from './components/VideoPreview';
 import ScoreDisplay from './components/ScoreDisplay';
 import SessionControls from './components/SessionControls';
+import VideoTransition from './components/VideoTransition';
 import CirclesBackground from '@/app/background/cycle-background'
 
 function SessionContent() {
@@ -34,6 +35,10 @@ function SessionContent() {
   const [isNewHigh, setIsNewHigh] = useState<boolean>(false);
   const [detectedWords, setDetectedWords] = useState<Array<{id: number; word: string; timestamp: number; imageUrl?: string}>>([]);
   const [audioVolume, setAudioVolume] = useState<number[]>(Array(20).fill(0));
+  const [showStartVideo, setShowStartVideo] = useState(false);
+  const [showEndVideo, setShowEndVideo] = useState(false);
+  const endVideoStartTimeRef = useRef<number | null>(null);
+  const pendingResultsRef = useRef<any>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -103,9 +108,9 @@ function SessionContent() {
     // セッション開始を受信
     newSocket.on('session_started', () => {
       console.log('Session started by master');
-      console.log('Attempting to start camera and audio capture...');
       setWaitingForMaster(false);
-      handleStart();
+      // start動画を表示
+      setShowStartVideo(true);
     });
 
     // 顔検出データを受信
@@ -137,9 +142,30 @@ function SessionContent() {
         localStorage.setItem('sessionResults', JSON.stringify(data));
         console.log('✅ Results saved to localStorage');
 
-        // 結果画面に遷移
-        console.log('🚀 Navigating to results page...');
-        router.push(`/results?sessionId=${sessionId}`);
+        // end動画が表示されている場合、4秒間の最低表示時間を保証
+        if (endVideoStartTimeRef.current !== null) {
+          const elapsed = Date.now() - endVideoStartTimeRef.current;
+          const minDisplayTime = 4000; // 4秒
+          const remainingTime = Math.max(0, minDisplayTime - elapsed);
+
+          console.log(`⏱️ End video elapsed: ${elapsed}ms, remaining: ${remainingTime}ms`);
+
+          // 結果を保留
+          pendingResultsRef.current = data;
+
+          // 残り時間だけ待ってから遷移
+          setTimeout(() => {
+            setShowEndVideo(false);
+            setTimeout(() => {
+              console.log('🚀 Navigating to results page...');
+              router.push(`/results?sessionId=${sessionId}`);
+            }, 400);
+          }, remainingTime);
+        } else {
+          // end動画が表示されていない場合は即座に遷移
+          console.log('🚀 Navigating to results page immediately...');
+          router.push(`/results?sessionId=${sessionId}`);
+        }
       } catch (error) {
         console.error('❌ Error processing session results:', error);
       }
@@ -663,6 +689,9 @@ function SessionContent() {
   const handleMasterStart = () => {
     if (!socket || !sessionId) return;
 
+    // start動画を表示
+    setShowStartVideo(true);
+
     socket.emit('start_session', {
       session_id: sessionId
     });
@@ -728,6 +757,23 @@ function SessionContent() {
     } else {
       console.error('❌ Socket not available to send session_end');
     }
+
+    // end動画を表示（タイムスタンプを記録）
+    endVideoStartTimeRef.current = Date.now();
+    setShowEndVideo(true);
+  };
+
+  // start動画終了後のコールバック
+  const handleStartVideoComplete = () => {
+    console.log('Start video completed, starting camera and audio');
+    setShowStartVideo(false);
+    handleStart();
+  };
+
+  // end動画終了後のコールバック（動画はsession_resultsまで表示し続ける）
+  const handleEndVideoComplete = () => {
+    console.log('End video completed, waiting for session_results');
+    // 動画を非表示にせず、session_resultsイベントを待つ
   };
 
   const formatTime = (seconds: number) => {
@@ -809,6 +855,22 @@ function SessionContent() {
           )}
         </div>
       </div>
+
+      {/* Start動画 */}
+      {showStartVideo && (
+        <VideoTransition
+          type="start"
+          onComplete={handleStartVideoComplete}
+        />
+      )}
+
+      {/* End動画 */}
+      {showEndVideo && (
+        <VideoTransition
+          type="end"
+          onComplete={handleEndVideoComplete}
+        />
+      )}
     </div>
   );
 }

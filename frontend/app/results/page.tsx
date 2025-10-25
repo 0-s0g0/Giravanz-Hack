@@ -208,8 +208,8 @@ function ResultsContent() {
         <div className="mt-6 bg-white rounded-lg p-6 shadow-lg">
           <h3 className="font-semibold text-gray-800 mb-3">スコアの見方</h3>
           <ul className="text-sm text-gray-600 space-y-2">
-            <li>• <strong>音声スコア (60%)</strong>: 発話の音量と活発さを評価</li>
-            <li>• <strong>表情スコア (40%)</strong>: 笑顔や表情の豊かさを評価</li>
+            <li>• <strong>音声スコア </strong>: 発話の音量と活発さを評価</li>
+            <li>• <strong>表情スコア </strong>: 笑顔や表情の豊かさを評価</li>
             <li>• <strong>総合スコア</strong>: 音声と表情を組み合わせた盛り上がり度</li>
           </ul>
         </div>

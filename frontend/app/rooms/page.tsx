@@ -22,11 +22,10 @@ const QRCodeModal = ({ url, onClose }: { url: string, onClose: () => void }) => 
         <h2 className="text-xl font-bold mb-4 text-center">グループ参加URL</h2>
         <div className="flex justify-center mb-4 p-4 border rounded-lg">
           {/* QRコードの生成 */}
-          <QRCode 
-            value={url} 
-            size={256} 
+          <QRCode
+            value={url}
+            size={256}
             level="H"
-            renderAs="svg" 
           />
         </div>
         <p className="text-sm text-gray-600 text-center break-words">{url}</p>

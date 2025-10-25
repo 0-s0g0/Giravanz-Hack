@@ -33,19 +33,27 @@ class AudioAnalyzer:
         Returns:
             float: 基本スコア (0-50点)
         """
-        if db_value <= 70:
+        if db_value <= 50
             return 0
-        elif db_value <= 80:
+        elif db_value <= 60
             return 10
-        elif db_value <= 90:
+        elif db_value <= 70
             return 15
-        elif db_value <= 100:
+        elif db_value <= 80
             return 20
-        elif db_value <= 110:
+        elif db_value <= 90:
             return 25
-        elif db_value <= 120:
+        elif db_value <= 100:
             return 30
-        else:  # 120 dB以上
+        elif db_value <= 110:
+            return 35
+        elif db_value <= 120:
+            return 40
+        elif db_value <= 130:
+            return 45
+        elif db_value <= 140:
+            return 47.5
+        else:  # 140dB以上
             return 50
 
     def calculate_db_and_initial_score(

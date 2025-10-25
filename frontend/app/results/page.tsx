@@ -10,9 +10,11 @@ interface AnalysisResult {
   expression_score: number;
   total_score: number;
   audio_details: {
-    avg_volume: number;
-    max_volume: number;
-    activity_count: number;
+    avg_score: number;
+    max_score: number;
+    avg_db: number;
+    avg_high_freq_percentage: number;
+    sample_count: number;
   };
   expression_details: {
     avg_score: number;
@@ -125,19 +127,23 @@ function ResultsContent() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">総合:</span>
-                        <span className="font-bold text-yellow-600">{result.audio_score}点</span>
+                        <span className="font-bold text-yellow-600">{result.audio_score.toFixed(1)}点</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">平均音量:</span>
-                        <span className="text-sm">{result.audio_details.avg_volume.toFixed(1)}</span>
+                        <span className="text-sm text-gray-600">平均スコア:</span>
+                        <span className="text-sm">{result.audio_details.avg_score.toFixed(1)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">最大音量:</span>
-                        <span className="text-sm">{result.audio_details.max_volume.toFixed(1)}</span>
+                        <span className="text-sm text-gray-600">最大スコア:</span>
+                        <span className="text-sm">{result.audio_details.max_score.toFixed(1)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">発話回数:</span>
-                        <span className="text-sm">{result.audio_details.activity_count}回</span>
+                        <span className="text-sm text-gray-600">平均dB:</span>
+                        <span className="text-sm">{result.audio_details.avg_db.toFixed(1)} dB</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">高周波数割合:</span>
+                        <span className="text-sm">{result.audio_details.avg_high_freq_percentage.toFixed(1)}%</span>
                       </div>
                     </div>
                   </div>

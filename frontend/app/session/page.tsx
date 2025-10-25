@@ -20,6 +20,9 @@ function SessionContent() {
   const [readyStatus, setReadyStatus] = useState<Record<string, boolean>>({});
   const [waitingForMaster, setWaitingForMaster] = useState(false);
   const [faceDetections, setFaceDetections] = useState<any>(null);
+  const [audioScore, setAudioScore] = useState<number>(0);
+  const [audioHighScore, setAudioHighScore] = useState<number>(0);
+  const [isNewHigh, setIsNewHigh] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,7 +58,7 @@ function SessionContent() {
     const newSocket = io(apiUrl);
 
     newSocket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('✅ Connected to server with socket ID:', newSocket.id);
 
       // セッション作成
       newSocket.emit('create_session', {
@@ -71,7 +74,8 @@ function SessionContent() {
         group_name: group?.groupName || `グループ ${groupId}`
       });
 
-      // セッション監視
+      // セッション監視（結果を受信するためのルーム参加）
+      console.log('📡 Joining session monitoring room:', sessionId);
       newSocket.emit('monitor_session', { session_id: sessionId });
     });
 
@@ -95,18 +99,46 @@ function SessionContent() {
       setFaceDetections(data);
     });
 
+    // 音声分析結果をリアルタイムで受信
+    newSocket.on('audio_analysis_update', (data) => {
+      console.log('Audio analysis update:', data);
+      setAudioScore(data.current_score);
+      setAudioHighScore(data.high_score);
+      setIsNewHigh(data.is_new_high);
+    });
+
     newSocket.on('session_results', (data) => {
-      console.log('Session results:', data);
-      // 結果をローカルストレージに保存
-      localStorage.setItem('sessionResults', JSON.stringify(data));
-      // 結果画面に遷移
-      router.push(`/results?sessionId=${sessionId}`);
+      console.log('🎉 Session results received:', data);
+      console.log('Number of groups in results:', data.results?.length);
+      console.log('Winner group:', data.winner_group_id);
+
+      try {
+        // 結果をローカルストレージに保存
+        localStorage.setItem('sessionResults', JSON.stringify(data));
+        console.log('✅ Results saved to localStorage');
+
+        // 結果画面に遷移
+        console.log('🚀 Navigating to results page...');
+        router.push(`/results?sessionId=${sessionId}`);
+      } catch (error) {
+        console.error('❌ Error processing session results:', error);
+      }
+    });
+
+    // エラーハンドリング
+    newSocket.on('error', (error) => {
+      console.error('❌ Socket error:', error);
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('🔌 Disconnected from server');
     });
 
     setSocket(newSocket);
     socketRef.current = newSocket;
 
     return () => {
+      console.log('🔄 Cleaning up socket connection');
       newSocket.close();
       socketRef.current = null;
     };
@@ -290,6 +322,7 @@ function SessionContent() {
   };
 
   const handleSessionEnd = () => {
+    console.log('🛑 handleSessionEnd called');
     setIsRunning(false);
 
     // インターバルをクリア
@@ -309,7 +342,11 @@ function SessionContent() {
 
     // セッション終了を通知
     if (socketRef.current) {
+      console.log('📤 Sending session_end event to server');
       socketRef.current.emit('session_end', { session_id: sessionId });
+      console.log('✅ session_end event sent');
+    } else {
+      console.error('❌ Socket not available to send session_end');
     }
   };
 
@@ -485,15 +522,53 @@ function SessionContent() {
 
           {/* ステータス */}
           {isRunning && (
-            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <p className="text-green-800 font-semibold">録画・録音中...</p>
+            <>
+              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-green-800 font-semibold">録画・録音中...</p>
+                </div>
+                <p className="text-sm text-green-700 mt-2">
+                  音声と表情をリアルタイムで分析しています
+                </p>
               </div>
-              <p className="text-sm text-green-700 mt-2">
-                音声と表情をリアルタイムで分析しています
-              </p>
-            </div>
+
+              {/* リアルタイムスコア表示 */}
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                {/* 音声スコア */}
+                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-6 border-2 border-yellow-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-2xl">🔊</span>
+                    <h3 className="font-bold text-gray-800">音声スコア</h3>
+                  </div>
+                  <div className={`text-4xl font-bold ${isNewHigh ? 'text-red-500 animate-pulse' : 'text-yellow-600'}`}>
+                    {audioScore.toFixed(1)}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-2">
+                    最高: {audioHighScore.toFixed(1)}点
+                  </div>
+                  {isNewHigh && (
+                    <div className="mt-2 text-xs font-bold text-red-500 animate-bounce">
+                      🎉 NEW HIGH SCORE!
+                    </div>
+                  )}
+                </div>
+
+                {/* 表情スコア */}
+                <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-6 border-2 border-pink-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-2xl">😊</span>
+                    <h3 className="font-bold text-gray-800">表情スコア</h3>
+                  </div>
+                  <div className="text-4xl font-bold text-pink-600">
+                    {faceDetections?.score?.toFixed(1) || '0.0'}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-2">
+                    検出人数: {faceDetections?.face_count || 0}人
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>

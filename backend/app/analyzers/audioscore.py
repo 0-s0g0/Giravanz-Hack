@@ -15,7 +15,7 @@ OUTPUT_FILENAME = "temp_recording.wav"
 TARGET_FREQUENCY = 1500 # ターゲット周波数 (Hz)
 
 # 💡 dBFSをdB (SPLスケール) に変換するためのオフセット設定 💡
-DB_OFFSET = 120 
+DB_OFFSET = 120
 
 # 🌟 ハイスコア記録用のグローバル変数 🌟
 HIGH_SCORE = 0.0
@@ -49,7 +49,7 @@ def score_from_db_value(db_value):
         return 45
     elif db_value <= 140:
         return 47.5
-    else: # 130以上
+    else: # 140以上
         return 50
 
 def calculate_initial_score_and_db(file_path):

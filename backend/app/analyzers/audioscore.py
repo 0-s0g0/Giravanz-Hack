@@ -42,7 +42,7 @@ def score_from_db_value(db_value):
     elif db_value <= 116:
         return 25
     elif db_value <= 122:
-        return 20
+        return 30
     elif db_value <= 128:
         return 35
     elif db_value <= 134:

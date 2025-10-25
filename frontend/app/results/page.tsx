@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import CirclesBackground from '@/app/background/cycle-background'
 
 interface AnalysisResult {
   group_id: string;
@@ -64,7 +65,8 @@ function ResultsContent() {
   const winnerGroup = results.results.find(r => r.group_id === results.winner_group_id);
 
   return (
-    <div className="min-h-screen bg-yellow-100 p-4 pb-20">
+    <div className="min-h-screen p-4 pb-20">
+      <CirclesBackground/>
       <div className="max-w-6xl mx-auto">
         {/* ヘッダー */}
         <div className="bg-white rounded-2xl shadow-2xl p-8 mb-6">

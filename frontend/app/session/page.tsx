@@ -11,6 +11,7 @@ import sunzin from '@/public/sunzin.jpg'
 import VideoPreview from './components/VideoPreview';
 import ScoreDisplay from './components/ScoreDisplay';
 import SessionControls from './components/SessionControls';
+import CirclesBackground from '@/app/background/cycle-background'
 
 function SessionContent() {
   const router = useRouter();
@@ -738,7 +739,8 @@ function SessionContent() {
   const faceIcon = getFaceIcon(faceDetections?.score);
 
   return (
-    <div className="min-h-screen bg-yellow-100 p-4">
+    <div className="min-h-screen p-4">
+      <CirclesBackground/>
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* ヘッダー */}

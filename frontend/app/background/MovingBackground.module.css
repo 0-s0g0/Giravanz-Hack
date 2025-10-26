@@ -1,0 +1,50 @@
+/* MovingBackground.module.css */
+
+/* 1. 全体を覆うコンテナのスタイル */
+.backgroundContainer {
+  /* 背景として機能させるための設定 */
+  position: absolute; /* 親要素に対する絶対配置 */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* 要素が飛び出さないように */
+  z-index: -1; /* 他のコンテンツの下に配置 */
+  pointer-events: none; /* マウスイベントを無視 */
+}
+
+/* 2. 流れるテキストのスタイル */
+.flowingText {
+  position: absolute;
+  white-space: nowrap; /* テキストが折り返さないように */
+  opacity: 0.2; /* 薄く表示して背景感を出す */
+  font-size: 2rem; /* サイズ調整 */
+  color: #ff007f; /* 文字色（例: ピンク） */
+  font-weight: bold;
+  
+  /* 初期位置（画面外の左下隅）を設定 */
+  transform: translate(-100vw, 100vh); 
+
+  /* アニメーションの適用 */
+  animation: flowDiagonal 20s linear infinite;
+}
+
+/* 3. アニメーションの定義 */
+@keyframes flowDiagonal {
+  /* 開始時: 画面外の左下（-100vw, 100vh から）*/
+  0% {
+    transform: translate(-100vw, 100vh) rotate(-15deg); /* 回転させて斜め感を強調 */
+    opacity: 0; /* 最初は透明 */
+  }
+  
+  /* 50%付近で最も視認できる位置に */
+  50% {
+      opacity: 0.3;
+  }
+
+  /* 終了時: 画面外の右上（100vw, -100vh へ）*/
+  100% {
+    transform: translate(100vw, -100vh) rotate(-15deg);
+    opacity: 0; /* 最後は透明に戻る */
+  }
+}

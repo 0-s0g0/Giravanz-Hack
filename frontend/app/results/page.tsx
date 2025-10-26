@@ -2,7 +2,16 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import CirclesBackground from '@/app/background/cycle-background'
+import Giran1 from '@/public/icon/Giran1.png'
+import Giran2 from '@/public/icon/Giran2.png'
+import Giran3 from '@/public/icon/Giran3.png'
+import Giran4 from '@/public/icon/Giran4.png'
+import Mega4 from '@/public/icon/Mega4.png'
+import Mega3 from '@/public/icon/Mega3.png'
+import Mega2 from '@/public/icon/Mega2.png'
+import Mega1 from '@/public/icon/Mega1.png'
 
 interface AnalysisResult {
   group_id: string;
@@ -30,6 +39,18 @@ interface SessionResult {
   winner_group_id: string;
   created_at: string;
 }
+
+// スコアに応じて画像を選択する関数
+const getImageByScore = (score: number, type: 'mega' | 'giran') => {
+  const images = type === 'mega'
+    ? [Mega1, Mega2, Mega3, Mega4]
+    : [Giran1, Giran2, Giran3, Giran4];
+
+  if (score < 25) return images[0];
+  if (score < 50) return images[1];
+  if (score < 75) return images[2];
+  return images[3];
+};
 
 function ResultsContent() {
   const router = useRouter();
@@ -129,15 +150,24 @@ function ResultsContent() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">総合:</span>
-                        <span className="font-bold text-yellow-600">{result.audio_score.toFixed(1)}点</span>
+                        <span className="font-bold text-yellow-600">{((result.audio_score / 70) * 100).toFixed(0)}/100点</span>
+                      </div>
+                      <div className="flex justify-center my-4">
+                        <Image
+                          src={getImageByScore(((result.audio_score / 70) * 100), 'mega')}
+                          alt={`Mega${Math.floor(((result.audio_score / 70) * 100) / 25) + 1}`}
+                          width={150}
+                          height={150}
+                          className="object-contain"
+                        />
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">平均スコア:</span>
-                        <span className="text-sm">{result.audio_details.avg_score.toFixed(1)}</span>
+                        <span className="text-sm">{((result.audio_details.avg_score / 70) * 100).toFixed(0)}/100</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">最大スコア:</span>
-                        <span className="text-sm">{result.audio_details.max_score.toFixed(1)}</span>
+                        <span className="text-sm">{((result.audio_details.max_score / 70) * 100).toFixed(0)}/100</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">平均dB:</span>
@@ -158,15 +188,24 @@ function ResultsContent() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">総合:</span>
-                        <span className="font-bold text-red-600">{result.expression_score}点</span>
+                        <span className="font-bold text-red-600">{result.expression_score.toFixed(0)}/100点</span>
+                      </div>
+                      <div className="flex justify-center my-4">
+                        <Image
+                          src={getImageByScore(result.expression_score, 'giran')}
+                          alt={`Giran${Math.floor(result.expression_score / 25) + 1}`}
+                          width={150}
+                          height={150}
+                          className="object-contain"
+                        />
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">平均スコア:</span>
-                        <span className="text-sm">{result.expression_details.avg_score.toFixed(1)}</span>
+                        <span className="text-sm">{result.expression_details.avg_score.toFixed(0)}/100</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">最高スコア:</span>
-                        <span className="text-sm">{result.expression_details.max_score.toFixed(1)}</span>
+                        <span className="text-sm">{result.expression_details.max_score.toFixed(0)}/100</span>
                       </div>
                     </div>
                   </div>
@@ -175,8 +214,8 @@ function ResultsContent() {
                 {/* プログレスバー */}
                 <div className="mt-4">
                   <div className="flex gap-2 mb-1 text-xs text-gray-600">
-                    <span>音声: {result.audio_score}点</span>
-                    <span>表情: {result.expression_score}点</span>
+                    <span>音声: {((result.audio_score / 70) * 100).toFixed(0)}/100点</span>
+                    <span>表情: {result.expression_score.toFixed(0)}/100点</span>
                   </div>
                   <div className="h-4 bg-gray-200 rounded-full overflow-hidden flex">
                     <div

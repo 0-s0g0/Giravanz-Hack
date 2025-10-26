@@ -362,6 +362,12 @@ def register_socketio_handlers(sio, sessions, session_data):
             session_ended.add(session_id)
             logger.info(f"Processing session end for {session_id}")
 
+            # 全クライアントにセッション終了を通知（end動画表示のため）
+            await sio.emit('session_ending', {
+                'session_id': session_id
+            }, room=f"session_{session_id}")
+            logger.info(f"session_ending event sent to all clients")
+
             results = []
             for group_id, group_info in sessions[session_id]['groups'].items():
                 analysis_data = session_data[session_id]['analysis_results'].get(group_id, {})
@@ -386,7 +392,7 @@ def register_socketio_handlers(sio, sessions, session_data):
                 expression_scores = analysis_data.get('expression_scores', [])
                 expression_score = float(np.mean(expression_scores)) if expression_scores else 0.0
 
-                total_score = float((audio_score * 0.6) + (expression_score * 0.4))
+                total_score = float((audio_score*0.5 ) + (expression_score*0.5 ))
 
                 timestamps = analysis_data.get('timestamps', [])
                 best_moment = None

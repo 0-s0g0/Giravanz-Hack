@@ -12,6 +12,9 @@ import Mega4 from '@/public/icon/Mega4.png'
 import Mega3 from '@/public/icon/Mega3.png'
 import Mega2 from '@/public/icon/Mega2.png'
 import Mega1 from '@/public/icon/Mega1.png'
+import ScoreTimelineChart from './components/ScoreTimelineChart'
+import BadgeDistributionChart from './components/BadgeDistributionChart'
+import {Accordion} from './components/Acordion'
 
 interface AnalysisResult {
   group_id: string;
@@ -40,6 +43,12 @@ interface SessionResult {
   created_at: string;
 }
 
+interface ScoreDataPoint {
+  timestamp: number;
+  audioScore: number;
+  expressionScore: number;
+}
+
 // スコアに応じて画像を選択する関数
 const getImageByScore = (score: number, type: 'mega' | 'giran') => {
   const images = type === 'mega'
@@ -56,8 +65,10 @@ function ResultsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('sessionId');
-
+  
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({})
   const [results, setResults] = useState<SessionResult | null>(null);
+  const [scoreHistories, setScoreHistories] = useState<Record<string, ScoreDataPoint[]>>({});
 
   useEffect(() => {
     const resultsStr = localStorage.getItem('sessionResults');
@@ -68,12 +79,37 @@ function ResultsContent() {
 
     const data: SessionResult = JSON.parse(resultsStr);
     setResults(data);
+
+    // 各グループのスコア履歴を読み込む
+    const histories: Record<string, ScoreDataPoint[]> = {};
+    data.results.forEach(result => {
+      const historyKey = `scoreHistory_${data.session_id}_${result.group_id}`;
+      const historyStr = localStorage.getItem(historyKey);
+      if (historyStr) {
+        try {
+          histories[result.group_id] = JSON.parse(historyStr);
+        } catch (e) {
+          console.error(`Failed to parse score history for ${result.group_id}:`, e);
+          histories[result.group_id] = [];
+        }
+      } else {
+        histories[result.group_id] = [];
+      }
+    });
+    setScoreHistories(histories);
   }, [router]);
 
   const handleRestart = () => {
     localStorage.clear();
     router.push('/');
   };
+
+  const handleToggle = (groupId: string) => {
+    setOpenAccordions(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }))
+  }
 
   if (!results) {
     return (
@@ -161,23 +197,24 @@ function ResultsContent() {
                           className="object-contain"
                         />
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between ">
                         <span className="text-sm text-gray-600">平均スコア:</span>
-                        <span className="text-sm">{((result.audio_details.avg_score / 70) * 100).toFixed(0)}/100</span>
+                        <span className="text-sm text-gray-700">{((result.audio_details.avg_score / 70) * 100).toFixed(0)}/100</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">最大スコア:</span>
-                        <span className="text-sm">{((result.audio_details.max_score / 70) * 100).toFixed(0)}/100</span>
+                        <span className="text-sm text-gray-700">{((result.audio_details.max_score / 70) * 100).toFixed(0)}/100</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">平均dB:</span>
-                        <span className="text-sm">{result.audio_details.avg_db.toFixed(1)} dB</span>
+                        <span className="text-sm text-gray-700">{result.audio_details.avg_db.toFixed(1)} dB</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">高周波数割合:</span>
-                        <span className="text-sm">{result.audio_details.avg_high_freq_percentage.toFixed(1)}%</span>
+                        <span className="text-sm text-gray-700">{result.audio_details.avg_high_freq_percentage.toFixed(1)}%</span>
                       </div>
                     </div>
+                    
                   </div>
 
                   {/* 表情スコア */}
@@ -188,7 +225,7 @@ function ResultsContent() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">総合:</span>
-                        <span className="font-bold text-red-600">{result.expression_score.toFixed(0)}/100点</span>
+                        <span className="font-bold text-red-600 ">{result.expression_score.toFixed(0)}/100点</span>
                       </div>
                       <div className="flex justify-center my-4">
                         <Image
@@ -201,37 +238,86 @@ function ResultsContent() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">平均スコア:</span>
-                        <span className="text-sm">{result.expression_details.avg_score.toFixed(0)}/100</span>
+                        <span className="text-sm text-gray-700">{result.expression_details.avg_score.toFixed(0)}/100</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">最高スコア:</span>
-                        <span className="text-sm">{result.expression_details.max_score.toFixed(0)}/100</span>
+                        <span className="text-sm text-gray-700">{result.expression_details.max_score.toFixed(0)}/100</span>
                       </div>
                     </div>
+                       {scoreHistories[result.group_id] && scoreHistories[result.group_id].length > 0 && (
+                          <div className="mt-6">
+                            <div className="grid grid-cols-1 gap-4">
+                            {/* 表情スコア時系列グラフ */}
+                             
+                            </div>
+                          </div>
+                      )}
                   </div>
                 </div>
+                <div></div>
+                {/*アコーディオン*/}
+                <div className="gap-4 mt-8">
+                  <Accordion
+                        title={'スコアの詳細を表示する'}
+                        content={
 
-                {/* プログレスバー */}
-                <div className="mt-4">
-                  <div className="flex gap-2 mb-1 text-xs text-gray-600">
-                    <span>音声: {((result.audio_score / 70) * 100).toFixed(0)}/100点</span>
-                    <span>表情: {result.expression_score.toFixed(0)}/100点</span>
-                  </div>
-                  <div className="h-4 bg-gray-200 rounded-full overflow-hidden flex">
-                    <div
-                      className="bg-yellow-500"
-                      style={{ width: `${(result.audio_score / result.total_score) * 100}%` }}
-                    ></div>
-                    <div
-                      className="bg-red-500"
-                      style={{ width: `${(result.expression_score / result.total_score) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
+                          <div>
+
+                          {scoreHistories[result.group_id] && scoreHistories[result.group_id].length > 0 && (
+                            <div className="mt-6">
+                              <div className="grid grid-cols-2 gap-4">
+                                {/* 音声スコア時系列グラフ */}
+
+                                <div className="bg-yellow-50 rounded-lg p-4">
+                                <ScoreTimelineChart
+                                  scoreHistory={scoreHistories[result.group_id]}
+                                  type="audio"
+                                  color="#f59e0b"
+                                  title="音声スコアの推移"
+                                />
+                                <BadgeDistributionChart
+                                  scoreHistory={scoreHistories[result.group_id]}
+                                  type="audio"
+                                  color="#f59e0b"
+                                  title="音声バッジ分布"
+                                  badgeNames={['Mega1', 'Mega2', 'Mega3', 'Mega4']}
+                                />
+                                </div>
+                                <div className="bg-red-50 rounded-lg p-4">
+                                <ScoreTimelineChart
+                                scoreHistory={scoreHistories[result.group_id]}
+                                type="expression"
+                                color="#ef4444"
+                                title="表情スコアの推移"
+                                />
+                                <BadgeDistributionChart
+                                  scoreHistory={scoreHistories[result.group_id]}
+                                  type="expression"
+                                  color="#ef4444"
+                                  title="表情バッジ分布"
+                                  badgeNames={['Giran1', 'Giran2', 'Giran3', 'Giran4']}
+                                />
+                                </div>
+                              </div>
+                            </div>
+                          )}</div>
+
+                        }
+                        isOpen={!!openAccordions[result.group_id]}
+                        onToggle={() => handleToggle(result.group_id)}
+                      />
               </div>
+
+              </div>
+              
             );
+            
           })}
+        
         </div>
+
+        
 
         {/* アクションボタン */}
         <div className="mt-8 flex gap-4">

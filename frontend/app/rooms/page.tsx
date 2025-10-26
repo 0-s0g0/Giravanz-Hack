@@ -17,7 +17,7 @@ interface GroupConfig {
 // 💡 QRコードモーダルコンポーネントを追加
 const QRCodeModal = ({ url, onClose }: { url: string, onClose: () => void }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black  bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-xl p-6 shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold mb-4 text-center">グループ参加URL</h2>
         <div className="flex justify-center mb-4 p-4 border rounded-lg">
@@ -168,7 +168,7 @@ export default function RoomsPage() {
                         value={group.name}
                         onChange={(e) => handleGroupNameChange(index, e.target.value)}
                         placeholder={`グループ ${index + 1} の名前`}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
+                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none"
                         disabled={index === 0}
                       />
                       {group.joined && (
@@ -221,7 +221,7 @@ export default function RoomsPage() {
           </div>
 
           {/* ... (注意事項などの既存コードは変更なし) ... */}
-          <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="mt-8 p-4 bg-yellow-50  rounded-lg">
             <h3 className="font-semibold text-yellow-800 mb-2">注意事項</h3>
             <ul className="text-sm text-yellow-700 space-y-1">
               <li>• URLを共有してメンバーを招待してください</li>

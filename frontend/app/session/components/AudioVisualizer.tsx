@@ -14,6 +14,7 @@ export default function AudioVisualizer({
   sensitivityPower = 2.0
 }: AudioVisualizerProps) {
   const maxVolume = 255;
+  
 
   // 1. 音量の平均値を計算
   const averageVolume = audioVolume.reduce((sum, vol) => sum + vol, 0) / audioVolume.length;

@@ -362,6 +362,12 @@ def register_socketio_handlers(sio, sessions, session_data):
             session_ended.add(session_id)
             logger.info(f"Processing session end for {session_id}")
 
+            # 全クライアントにセッション終了を通知（end動画表示のため）
+            await sio.emit('session_ending', {
+                'session_id': session_id
+            }, room=f"session_{session_id}")
+            logger.info(f"session_ending event sent to all clients")
+
             results = []
             for group_id, group_info in sessions[session_id]['groups'].items():
                 analysis_data = session_data[session_id]['analysis_results'].get(group_id, {})
@@ -380,13 +386,15 @@ def register_socketio_handlers(sio, sessions, session_data):
                 avg_db = float(np.mean([d['db_value'] for d in audio_details_list])) if audio_details_list else 0.0
                 avg_high_freq = float(np.mean([d['high_freq_percentage'] for d in audio_details_list])) if audio_details_list else 0.0
 
-                # 音声スコアはaudioscore.pyのアルゴリズムを使用（0-100点）
-                audio_score = float(min(100, avg_audio_score))
+                # 音声スコアはaudioscore.pyのアルゴリズムを使用（0-70点）
+                audio_score = float(avg_audio_score)
 
                 expression_scores = analysis_data.get('expression_scores', [])
                 expression_score = float(np.mean(expression_scores)) if expression_scores else 0.0
 
-                total_score = float((audio_score * 0.6) + (expression_score * 0.4))
+                # 音声スコアを0-100に正規化してから平均（音声は最大70点、表情は最大100点）
+                normalized_audio_score = (audio_score / 70.0) * 100.0
+                total_score = float((normalized_audio_score*0.5 ) + (expression_score*0.5 ))
 
                 timestamps = analysis_data.get('timestamps', [])
                 best_moment = None

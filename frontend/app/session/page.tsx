@@ -4,13 +4,20 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Laugh, Smile, Annoyed, Frown,Loader } from 'lucide-react';
-import logo from '@/public/emblem_nonBG.png'
-import kaba from '@/public/kaba.jpg'
-import nagai from '@/public/nagai.jpg'
-import sunzin from '@/public/sunzin.jpg'
 import VideoPreview from './components/VideoPreview';
 import ScoreDisplay from './components/ScoreDisplay';
 import SessionControls from './components/SessionControls';
+import VideoTransition from './components/VideoTransition';
+import CirclesBackground from '@/app/background/cycle-background'
+import {MovingBackground} from '@/app/background/text-background'
+import { CHEER_KEYWORDS, KEYWORD_IMAGE_MAP } from './constants/cheerKeywords'
+
+// グループIDから表示名を生成するヘルパー関数
+const getGroupDisplayName = (groupId: string): string => {
+  if (groupId === 'group_1') return 'マスター';
+  const groupNumber = groupId.replace('group_', '');
+  return `グループ ${groupNumber}`;
+};
 
 function SessionContent() {
   const router = useRouter();
@@ -33,6 +40,13 @@ function SessionContent() {
   const [isNewHigh, setIsNewHigh] = useState<boolean>(false);
   const [detectedWords, setDetectedWords] = useState<Array<{id: number; word: string; timestamp: number; imageUrl?: string}>>([]);
   const [audioVolume, setAudioVolume] = useState<number[]>(Array(20).fill(0));
+  const [showStartVideo, setShowStartVideo] = useState(false);
+  const [showEndVideo, setShowEndVideo] = useState(false);
+  const endVideoStartTimeRef = useRef<number | null>(null);
+  const pendingResultsRef = useRef<any>(null);
+  const [scoreHistory, setScoreHistory] = useState<Array<{timestamp: number; audioScore: number; expressionScore: number}>>([]);
+  const scoreHistoryRef = useRef<Array<{timestamp: number; audioScore: number; expressionScore: number}>>([]);
+  const sessionStartTimeRef = useRef<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,7 +63,6 @@ function SessionContent() {
   useEffect(() => {
     // 設定を取得
     const configStr = localStorage.getItem('sessionConfig');
-    const groupStr = localStorage.getItem('selectedGroup');
 
     if (!configStr || !sessionId || !groupId) {
       router.push('/');
@@ -57,10 +70,12 @@ function SessionContent() {
     }
 
     const config = JSON.parse(configStr);
-    const group = groupStr ? JSON.parse(groupStr) : null;
 
     setSessionConfig(config);
-    setGroupName(group?.groupName || `グループ ${groupId}`);
+
+    // グループIDから一貫した表示名を生成
+    const displayName = groupId ? getGroupDisplayName(groupId) : 'グループ';
+    setGroupName(displayName);
     setTimeLeft(config.durationMinutes * 60);
 
     // マスターかどうかを判定
@@ -85,7 +100,7 @@ function SessionContent() {
       newSocket.emit('join_group', {
         session_id: sessionId,
         group_id: groupId,
-        group_name: group?.groupName || `グループ ${groupId}`
+        group_name: displayName
       });
 
       // セッション監視（結果を受信するためのルーム参加）
@@ -101,10 +116,71 @@ function SessionContent() {
 
     // セッション開始を受信
     newSocket.on('session_started', () => {
-      console.log('Session started by master');
-      console.log('Attempting to start camera and audio capture...');
+      console.log('🎬 session_started event received');
+      console.log('🎬 Group ID:', groupId);
+      console.log('🎬 Is Master:', isMasterGroup);
       setWaitingForMaster(false);
-      handleStart();
+      // start動画を表示
+      setShowStartVideo(true);
+      console.log('🎬 showStartVideo set to true');
+    });
+
+    // セッション終了を受信（全クライアントでend動画を表示）
+    newSocket.on('session_ending', (data) => {
+      console.log('🎬 session_ending event received');
+      console.log('🎬 Group ID:', groupId);
+      console.log('🎬 Is Master:', isMasterGroup);
+
+      // セッションを停止
+      setIsRunning(false);
+
+      // スコア履歴をlocalStorageに保存（Refから最新の値を取得）
+      if (groupId) {
+        const scoreHistoryKey = `scoreHistory_${data.session_id}_${groupId}`;
+        const historyToSave = scoreHistoryRef.current;
+        console.log('📊 Saving score history from session_ending, length:', historyToSave.length);
+        console.log('📊 Score history sample:', historyToSave.slice(0, 3));
+        localStorage.setItem(scoreHistoryKey, JSON.stringify(historyToSave));
+        console.log('✅ Score history saved to localStorage:', scoreHistoryKey);
+      }
+
+      // インターバルをクリア
+      if (frameIntervalRef.current) {
+        clearInterval(frameIntervalRef.current);
+        frameIntervalRef.current = null;
+      }
+      if (audioIntervalRef.current) {
+        clearInterval(audioIntervalRef.current);
+        audioIntervalRef.current = null;
+      }
+
+      // 音声認識を停止
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+          recognitionRef.current = null;
+          isRecognitionRunningRef.current = false;
+        } catch (e) {
+          console.error('Error stopping speech recognition:', e);
+        }
+      }
+
+      // 波形のアニメーションを停止
+      if (volumeAnimationRef.current) {
+        cancelAnimationFrame(volumeAnimationRef.current);
+        volumeAnimationRef.current = null;
+      }
+      analyserRef.current = null;
+
+      // メディアストリームを停止
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+
+      // end動画を表示
+      endVideoStartTimeRef.current = Date.now();
+      setShowEndVideo(true);
+      console.log('🎬 showEndVideo set to true from session_ending');
     });
 
     // 顔検出データを受信
@@ -136,9 +212,30 @@ function SessionContent() {
         localStorage.setItem('sessionResults', JSON.stringify(data));
         console.log('✅ Results saved to localStorage');
 
-        // 結果画面に遷移
-        console.log('🚀 Navigating to results page...');
-        router.push(`/results?sessionId=${sessionId}`);
+        // end動画が表示されている場合、4秒間の最低表示時間を保証
+        if (endVideoStartTimeRef.current !== null) {
+          const elapsed = Date.now() - endVideoStartTimeRef.current;
+          const minDisplayTime = 4000; // 4秒
+          const remainingTime = Math.max(0, minDisplayTime - elapsed);
+
+          console.log(`⏱️ End video elapsed: ${elapsed}ms, remaining: ${remainingTime}ms`);
+
+          // 結果を保留
+          pendingResultsRef.current = data;
+
+          // 残り時間だけ待ってから遷移
+          setTimeout(() => {
+            setShowEndVideo(false);
+            setTimeout(() => {
+              console.log('🚀 Navigating to results page...');
+              router.push(`/results?sessionId=${sessionId}`);
+            }, 500);
+          }, remainingTime);
+        } else {
+          // end動画が表示されていない場合は即座に遷移
+          console.log('🚀 Navigating to results page immediately...');
+          router.push(`/results?sessionId=${sessionId}`);
+        }
       } catch (error) {
         console.error('❌ Error processing session results:', error);
       }
@@ -179,6 +276,25 @@ function SessionContent() {
     }
   }, [isRunning, timeLeft]);
 
+  // スコアが更新されるたびに履歴に記録
+  useEffect(() => {
+    if (isRunning && sessionStartTimeRef.current) {
+      const timestamp = Date.now() - sessionStartTimeRef.current;
+      const expressionScore = faceDetections?.score || 0;
+
+      setScoreHistory(prev => {
+        const newHistory = [...prev, {
+          timestamp,
+          audioScore: ((audioScore / 70) * 100),
+          expressionScore
+        }];
+        scoreHistoryRef.current = newHistory; // Refも更新
+        console.log('📊 Score history updated, length:', newHistory.length);
+        return newHistory;
+      });
+    }
+  }, [audioScore, faceDetections?.score, isRunning]);
+
 
   /**
    * スコアに基づいて表情アイコンを決定する
@@ -204,40 +320,6 @@ function SessionContent() {
     return <Frown size={iconSize} className={iconClass} />;
   };
 
-  // 検出する応援キーワードリスト
-  const CHEER_KEYWORDS = [
-    'がんばれ', '頑張れ', 'ガンバレ','がん','ガン',
-    'いいね', 'イイネ','いね','イネ',
-    'やったー', 'ヤッター',
-    'ゴール',
-    'ギラヴァンツ', 'ぎら','ギラ',
-    'ボール',
-    'すごい', 'スゴイ',
-    'ナイス',
-    'よし', 'ヨシ',
-    'いけ', 'イケ',
-    'すんじん', 'スンジン','新人',
-    'かば','カバ',
-    'ながい','ナガイ','長い','長井','永井'
-
-  ];
-
-  const KEYWORD_IMAGE_MAP: Record<string, any> = {
-    'ギラヴァンツ': logo.src, // Next.js Imageの場合、.srcでURLを取得
-    'ぎらヴぁんツ': logo.src,
-    'ギラ': logo.src,
-    'すんじん': sunzin.src,
-    '新人': sunzin.src,
-    'スンジン': sunzin.src,
-    'かば': kaba.src,
-    'カバ': kaba.src,
-    'ながい': nagai.src,
-    'ナガイ': nagai.src,
-    '長井': nagai.src,
-    '永井': nagai.src,
-    '長い': nagai.src,
-
-  };
 
   /**
    * 音声認識を開始する（Web Speech API）
@@ -662,6 +744,9 @@ function SessionContent() {
   const handleMasterStart = () => {
     if (!socket || !sessionId) return;
 
+    // start動画を表示
+    setShowStartVideo(true);
+
     socket.emit('start_session', {
       session_id: sessionId
     });
@@ -677,6 +762,14 @@ function SessionContent() {
 
     console.log('Setting isRunning to true');
     setIsRunning(true);
+
+    // セッション開始時刻を記録
+    sessionStartTimeRef.current = Date.now();
+
+    // スコア履歴をリセット
+    setScoreHistory([]);
+    scoreHistoryRef.current = [];
+    console.log('📊 Score history reset');
 
     // 動画フレームを2秒ごとにキャプチャ
     console.log('Starting video frame capture (every 2 seconds)');
@@ -695,7 +788,19 @@ function SessionContent() {
 
   const handleSessionEnd = () => {
     console.log('🛑 handleSessionEnd called');
+    console.log('🛑 Group ID:', groupId);
+    console.log('🛑 Is Master:', isMaster);
     setIsRunning(false);
+
+    // スコア履歴をlocalStorageに保存（Refから最新の値を取得）
+    if (groupId) {
+      const scoreHistoryKey = `scoreHistory_${sessionId}_${groupId}`;
+      const historyToSave = scoreHistoryRef.current;
+      console.log('📊 Saving score history from handleSessionEnd, length:', historyToSave.length);
+      console.log('📊 Score history sample:', historyToSave.slice(0, 3));
+      localStorage.setItem(scoreHistoryKey, JSON.stringify(historyToSave));
+      console.log('✅ Score history saved to localStorage:', scoreHistoryKey);
+    }
 
     // インターバルをクリア
     if (frameIntervalRef.current) {
@@ -727,6 +832,27 @@ function SessionContent() {
     } else {
       console.error('❌ Socket not available to send session_end');
     }
+
+    // end動画を表示（タイムスタンプを記録）
+    endVideoStartTimeRef.current = Date.now();
+    console.log('🎬 Setting showEndVideo to true');
+    console.log('🎬 Group ID:', groupId);
+    console.log('🎬 Is Master:', isMaster);
+    setShowEndVideo(true);
+    console.log('🎬 showEndVideo state updated');
+  };
+
+  // start動画終了後のコールバック
+  const handleStartVideoComplete = () => {
+    console.log('Start video completed, starting camera and audio');
+    setShowStartVideo(false);
+    handleStart();
+  };
+
+  // end動画終了後のコールバック（動画はsession_resultsまで表示し続ける）
+  const handleEndVideoComplete = () => {
+    console.log('End video completed, waiting for session_results');
+    // 動画を非表示にせず、session_resultsイベントを待つ
   };
 
   const formatTime = (seconds: number) => {
@@ -738,10 +864,21 @@ function SessionContent() {
   const faceIcon = getFaceIcon(faceDetections?.score);
 
   return (
-    <div className="min-h-screen bg-yellow-100 p-4">
+    <div className="min-h-screen p-4">
+      <CirclesBackground  />
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* ヘッダー */}
+          {isRunning && (
+             <div className="mt-6 mb-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-green-800 font-semibold">音声と表情をリアルタイムで分析中...</p>
+                </div>
+              </div>
+          )}
+
+
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
               {groupName}
@@ -758,6 +895,7 @@ function SessionContent() {
             </div>
             <p className="text-gray-600 mt-2">残り時間</p>
           </div>
+          
 
           {/* ビデオプレビュー */}
           <VideoPreview
@@ -784,15 +922,7 @@ function SessionContent() {
           {/* ステータス */}
           {isRunning && (
             <>
-              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <p className="text-green-800 font-semibold">録画・録音中...</p>
-                </div>
-                <p className="text-sm text-green-700 mt-2">
-                  音声と表情をリアルタイムで分析しています
-                </p>
-              </div>
+
 
               {/* リアルタイムスコア表示 */}
               <ScoreDisplay
@@ -807,6 +937,22 @@ function SessionContent() {
           )}
         </div>
       </div>
+
+      {/* Start動画 */}
+      {showStartVideo && (
+        <VideoTransition
+          type="start"
+          onComplete={handleStartVideoComplete}
+        />
+      )}
+
+      {/* End動画 */}
+      {showEndVideo && (
+        <VideoTransition
+          type="end"
+          onComplete={handleEndVideoComplete}
+        />
+      )}
     </div>
   );
 }

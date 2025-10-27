@@ -37,10 +37,10 @@ export default function ScoreDisplay({
           
         
         <div className={`text-4xl font-bold ${isNewHigh ? 'text-red-500 animate-pulse' : 'text-orange-600'}`}>
-          {audioScore.toFixed(1)}
+          {((audioScore / 70) * 100).toFixed(0)}/100
         </div>
         <div className="text-sm text-gray-600 mt-2">
-          最高: {audioHighScore.toFixed(1)}点
+          最高: {((audioHighScore / 70) * 100).toFixed(0)}/100点
         </div>
         {isNewHigh && (
           <div className="mt-2 text-xs font-bold text-red-500 animate-bounce">
@@ -58,7 +58,7 @@ export default function ScoreDisplay({
           <div className="flex flex-col text-yellow-200 items-center gap-2">
             {faceIcon}
             <div className="text-4xl font-bold text-orange-600">
-              {faceDetections?.score?.toFixed(1) || '0.0'}
+              {faceDetections?.score?.toFixed(0) || '0'}/100
             </div>
           </div>
           <div className="text-sm text-gray-600 mt-2">

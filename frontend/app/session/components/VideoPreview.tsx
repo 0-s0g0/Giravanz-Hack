@@ -110,7 +110,7 @@ export default function VideoPreview({
                     <img
                       src={item.imageUrl}
                       alt={item.word}
-                      className="w-24 h-24 object-contain rounded-lg shadow-xl border-4 border-white"
+                      className="w-24 h-24 object-contain "
                     />
                   ) : (
                     item.word
@@ -129,19 +129,7 @@ export default function VideoPreview({
       </div>
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* 顔検出情報 */}
-      {isRunning && faceDetections && (
-        <div className="mt-2 p-3 bg-gray-100 rounded-lg text-sm">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-gray-700">
-              検出: {faceDetections.face_count} 人
-            </span>
-            <span className="font-semibold text-yellow-600">
-              スコア: {faceDetections.score?.toFixed(1) || 0}点
-            </span>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 }

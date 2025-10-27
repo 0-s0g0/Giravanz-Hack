@@ -30,7 +30,7 @@ export default function Home() {
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Team Engagement Analyzer
+            Yell Striker 2025 
           </h1>
           <p className="text-gray-600">
             チームの盛り上がり度を分析
@@ -49,7 +49,7 @@ export default function Home() {
               max="10"
               value={numGroups}
               onChange={(e) => setNumGroups(parseInt(e.target.value) || 2)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-3 border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition"
             />
             <p className="mt-1 text-xs text-gray-500">
               2〜10グループまで設定できます
@@ -67,7 +67,7 @@ export default function Home() {
               max="60"
               value={duration}
               onChange={(e) => setDuration(parseInt(e.target.value) || 5)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-3 border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none transition"
             />
             <p className="mt-1 text-xs text-gray-500">
               1〜60分まで設定できます

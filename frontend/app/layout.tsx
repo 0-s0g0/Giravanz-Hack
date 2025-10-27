@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Team Engagement Analyzer",
+  title: "Yell Striker 2025",
   description: "チームの盛り上がりを分析するアプリ",
 };
 

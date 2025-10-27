@@ -34,11 +34,8 @@ export default function VideoTransition({ type, onComplete }: VideoTransitionPro
           onComplete();
         }, 500);
       } else {
-        // end動画は終了したらループ再生（session_resultsが来るまで）
-        video.currentTime = 0;
-        video.play().catch(err => {
-          console.error('Video loop failed:', err);
-        });
+        // end動画は一回だけ再生して終了
+        console.log('End video playback completed');
         onComplete();
       }
     };

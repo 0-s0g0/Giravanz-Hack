@@ -45,6 +45,7 @@ function SessionContent() {
   const endVideoStartTimeRef = useRef<number | null>(null);
   const pendingResultsRef = useRef<any>(null);
   const [scoreHistory, setScoreHistory] = useState<Array<{timestamp: number; audioScore: number; expressionScore: number}>>([]);
+  const scoreHistoryRef = useRef<Array<{timestamp: number; audioScore: number; expressionScore: number}>>([]);
   const sessionStartTimeRef = useRef<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -133,10 +134,13 @@ function SessionContent() {
       // セッションを停止
       setIsRunning(false);
 
-      // スコア履歴をlocalStorageに保存
+      // スコア履歴をlocalStorageに保存（Refから最新の値を取得）
       if (groupId) {
         const scoreHistoryKey = `scoreHistory_${data.session_id}_${groupId}`;
-        localStorage.setItem(scoreHistoryKey, JSON.stringify(scoreHistory));
+        const historyToSave = scoreHistoryRef.current;
+        console.log('📊 Saving score history from session_ending, length:', historyToSave.length);
+        console.log('📊 Score history sample:', historyToSave.slice(0, 3));
+        localStorage.setItem(scoreHistoryKey, JSON.stringify(historyToSave));
         console.log('✅ Score history saved to localStorage:', scoreHistoryKey);
       }
 
@@ -278,11 +282,16 @@ function SessionContent() {
       const timestamp = Date.now() - sessionStartTimeRef.current;
       const expressionScore = faceDetections?.score || 0;
 
-      setScoreHistory(prev => [...prev, {
-        timestamp,
-        audioScore: ((audioScore / 70) * 100),
-        expressionScore
-      }]);
+      setScoreHistory(prev => {
+        const newHistory = [...prev, {
+          timestamp,
+          audioScore: ((audioScore / 70) * 100),
+          expressionScore
+        }];
+        scoreHistoryRef.current = newHistory; // Refも更新
+        console.log('📊 Score history updated, length:', newHistory.length);
+        return newHistory;
+      });
     }
   }, [audioScore, faceDetections?.score, isRunning]);
 
@@ -757,6 +766,11 @@ function SessionContent() {
     // セッション開始時刻を記録
     sessionStartTimeRef.current = Date.now();
 
+    // スコア履歴をリセット
+    setScoreHistory([]);
+    scoreHistoryRef.current = [];
+    console.log('📊 Score history reset');
+
     // 動画フレームを2秒ごとにキャプチャ
     console.log('Starting video frame capture (every 2 seconds)');
     frameIntervalRef.current = setInterval(captureFrame, 2000);
@@ -778,10 +792,13 @@ function SessionContent() {
     console.log('🛑 Is Master:', isMaster);
     setIsRunning(false);
 
-    // スコア履歴をlocalStorageに保存
+    // スコア履歴をlocalStorageに保存（Refから最新の値を取得）
     if (groupId) {
       const scoreHistoryKey = `scoreHistory_${sessionId}_${groupId}`;
-      localStorage.setItem(scoreHistoryKey, JSON.stringify(scoreHistory));
+      const historyToSave = scoreHistoryRef.current;
+      console.log('📊 Saving score history from handleSessionEnd, length:', historyToSave.length);
+      console.log('📊 Score history sample:', historyToSave.slice(0, 3));
+      localStorage.setItem(scoreHistoryKey, JSON.stringify(historyToSave));
       console.log('✅ Score history saved to localStorage:', scoreHistoryKey);
     }
 

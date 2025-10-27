@@ -84,18 +84,23 @@ function ResultsContent() {
     const histories: Record<string, ScoreDataPoint[]> = {};
     data.results.forEach(result => {
       const historyKey = `scoreHistory_${data.session_id}_${result.group_id}`;
+      console.log('📊 Looking for score history with key:', historyKey);
       const historyStr = localStorage.getItem(historyKey);
       if (historyStr) {
         try {
-          histories[result.group_id] = JSON.parse(historyStr);
+          const parsedHistory = JSON.parse(historyStr);
+          console.log('📊 Found score history for', result.group_id, 'length:', parsedHistory.length);
+          histories[result.group_id] = parsedHistory;
         } catch (e) {
           console.error(`Failed to parse score history for ${result.group_id}:`, e);
           histories[result.group_id] = [];
         }
       } else {
+        console.warn('⚠️ No score history found for', result.group_id);
         histories[result.group_id] = [];
       }
     });
+    console.log('📊 All score histories loaded:', Object.keys(histories).map(k => `${k}: ${histories[k].length} items`));
     setScoreHistories(histories);
   }, [router]);
 
@@ -261,15 +266,11 @@ function ResultsContent() {
                   <Accordion
                         title={'スコアの詳細を表示する'}
                         content={
-
                           <div>
-
-                          {scoreHistories[result.group_id] && scoreHistories[result.group_id].length > 0 && (
-                            <div className="mt-6">
-                              <div className="grid grid-cols-2 gap-4">
-                                {/* 音声スコア時系列グラフ */}
-
-                                <div className="bg-yellow-50 rounded-lg p-4">
+                          {scoreHistories[result.group_id] && scoreHistories[result.group_id].length > 0 ? (
+                            <div className="grid grid-cols-2 gap-4">
+                              {/* 音声スコア時系列グラフ */}
+                              <div className="bg-yellow-50 rounded-lg p-4">
                                 <ScoreTimelineChart
                                   scoreHistory={scoreHistories[result.group_id]}
                                   type="audio"
@@ -283,13 +284,13 @@ function ResultsContent() {
                                   title="音声バッジ分布"
                                   badgeNames={['Mega1', 'Mega2', 'Mega3', 'Mega4']}
                                 />
-                                </div>
-                                <div className="bg-red-50 rounded-lg p-4">
+                              </div>
+                              <div className="bg-red-50 rounded-lg p-4">
                                 <ScoreTimelineChart
-                                scoreHistory={scoreHistories[result.group_id]}
-                                type="expression"
-                                color="#ef4444"
-                                title="表情スコアの推移"
+                                  scoreHistory={scoreHistories[result.group_id]}
+                                  type="expression"
+                                  color="#ef4444"
+                                  title="表情スコアの推移"
                                 />
                                 <BadgeDistributionChart
                                   scoreHistory={scoreHistories[result.group_id]}
@@ -298,11 +299,14 @@ function ResultsContent() {
                                   title="表情バッジ分布"
                                   badgeNames={['Giran1', 'Giran2', 'Giran3', 'Giran4']}
                                 />
-                                </div>
                               </div>
                             </div>
-                          )}</div>
-
+                          ) : (
+                            <div className="text-center text-gray-500 py-8">
+                              スコア履歴データがありません
+                            </div>
+                          )}
+                          </div>
                         }
                         isOpen={!!openAccordions[result.group_id]}
                         onToggle={() => handleToggle(result.group_id)}
